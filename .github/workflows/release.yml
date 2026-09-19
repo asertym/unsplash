@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,11 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Node.js + pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          package-manager: pnpm
+          cache: pnpm
 
       - name: Install system dependencies (Linux)
         if: matrix.platform == 'ubuntu-24.04'
