@@ -46,7 +46,6 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -64,5 +63,4 @@ jobs:
           releaseBody: Release ${{ github.ref_name }}
           releaseDraft: false
           prerelease: false
-          tauriScript: pnpm
-          uploadWorkflowArtifacts: true
+          tauriScript: pnpm tauri
