@@ -79,7 +79,7 @@ export function PhotoCard({ photo, isFavorite, onToggleFavorite, onOpenLightbox 
           <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <div className="flex items-center gap-2">
               <img
-                src={`https://randomuser.me/api/portraits/thumb/manny.jpg`}
+                src={photo.user.profile_image.small}
                 alt={photo.user.name}
                 className="size-6 rounded-full border border-white/30"
               />

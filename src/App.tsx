@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { SearchBar } from "@/components/SearchBar";
 import { MasonryGrid } from "@/components/MasonryGrid";
-import { TopicBar } from "@/components/TopicBar";
+import { FilterBar } from "@/components/FilterBar";
 import { Lightbox } from "@/components/Lightbox";
 import { FavoritesPanel } from "@/components/FavoritesPanel";
 import { SettingsPanel } from "@/components/SettingsPanel";
@@ -12,12 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Heart, Image, Sun, Moon } from "@phosphor-icons/react";
 import { useUnsplash } from "@/hooks/useUnsplash";
 import { useFavorites } from "@/hooks/useFavorites";
-import { useSettingsStore } from "@/store/settings";
+import { useSettingsStore, loadSettings, type Orientation } from "@/store/settings";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getDownloadUrl } from "@/api/unsplashClient";
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
-	const { paginationMode } = useSettingsStore();
+	const { paginationMode, orientation, setOrientation, saveFolder } =
+		useSettingsStore();
 	const { theme, setTheme } = useTheme();
 	const { photos, loading, error, hasMore, search, loadMore } = useUnsplash();
 	const { isFavorite, toggleFavorite, favorites, getFavoritePhotos } =
@@ -28,36 +29,37 @@ function App() {
 	const [favoritesOpen, setFavoritesOpen] = useState(false);
 	const [favoritePhotos, setFavoritePhotos] = useState<typeof photos>([]);
 	const [favLoading, setFavLoading] = useState(false);
-	const [activeTopic, setActiveTopic] = useState<string | null>(null);
+	const [activeModifier, setActiveModifier] = useState<string | null>(null);
 	const queryRef = useRef("");
 	const [lightboxIndex, setLightboxIndex] = useState(-1);
 
 	const handleSearch = useCallback(
 		(query: string) => {
-			setActiveTopic(null);
+			setActiveModifier(null);
 			queryRef.current = query;
 			search(query, true);
 		},
 		[search],
 	);
 
-	const handleSelectTopic = useCallback(
-		(slug: string) => {
-			if (activeTopic === slug) {
-				setActiveTopic(null);
-				search("", true);
-			} else {
-				setActiveTopic(slug);
-				search(slug, true);
-			}
+	const buildQuery = (slug: string | null) =>
+		[queryRef.current, slug].filter(Boolean).join(" ");
+
+	const handleSelectModifier = useCallback(
+		(slug: string | null) => {
+			setActiveModifier(slug === activeModifier ? null : slug);
+			search(buildQuery(slug), true);
 		},
-		[activeTopic, search],
+		[activeModifier, search],
 	);
 
-	const handleClearTopic = useCallback(() => {
-		setActiveTopic(null);
-		search("", true);
-	}, [search]);
+	const handleOrientationChange = useCallback(
+		(o: Orientation | null) => {
+			setOrientation(o);
+			search(buildQuery(activeModifier), true);
+		},
+		[setOrientation, activeModifier, search],
+	);
 
 	const handleLoadMore = useCallback(() => {
 		loadMore();
@@ -115,23 +117,20 @@ function App() {
 	}, []);
 
 	const handleSave = useCallback(async () => {
-		if (!lightboxPhoto?.id) return;
+		if (!lightboxPhoto) return;
 		try {
-			const result = await getDownloadUrl(lightboxPhoto.id);
-			if (result.error || !result.data?.url) {
-				throw new Error("Could not get download URL");
-			}
-			toast("Download started", {
-				description: "Opening photo in your browser for saving",
+			const path = await invoke<string>("save_photo", {
+				url: lightboxPhoto.urls.raw,
+				filename: `${lightboxPhoto.slug}.jpg`,
+				destDir: saveFolder,
 			});
-			await openUrl(result.data.url);
-		} catch {
-			toast.error("Download failed", {
-				description:
-					"Could not get download URL. Try opening the photo instead.",
+			toast("Saved", { description: path });
+		} catch (e) {
+			toast.error("Save failed", {
+				description: e instanceof Error ? e.message : String(e),
 			});
 		}
-	}, [lightboxPhoto]);
+	}, [lightboxPhoto, saveFolder]);
 
 	const handleOpenFavorites = useCallback(async () => {
 		setFavoritesOpen(true);
@@ -158,11 +157,18 @@ function App() {
 		}
 	}, [error]);
 
+	// Initial load on mount
+	useEffect(() => {
+		search("", true);
+		loadSettings();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
 	// Update window title with current search query
 	useEffect(() => {
-		const q = queryRef.current || (activeTopic ? `#${activeTopic}` : "");
+		const q = queryRef.current || "";
 		document.title = q ? `${q} · Unsplash Wallpapers` : "Unsplash Wallpapers";
-	}, [queryRef, activeTopic]);
+	}, [queryRef]);
 
 	return (
 		<div className="bg-background min-h-screen">
@@ -204,10 +210,11 @@ function App() {
 			</header>
 
 			<main className="mx-auto px-4 py-6 max-w-screen-2xl">
-				<TopicBar
-					activeTopic={activeTopic}
-					onSelectTopic={handleSelectTopic}
-					onClear={handleClearTopic}
+				<FilterBar
+					activeModifier={activeModifier}
+					onSelectModifier={handleSelectModifier}
+					orientation={orientation}
+					onOrientationChange={handleOrientationChange}
 				/>
 
 				{photos.length === 0 && !loading && (
@@ -220,12 +227,11 @@ function App() {
 						</div>
 						<h2 className="mb-2 font-semibold text-xl">Explore Wallpapers</h2>
 						<p className="mb-6 max-w-md text-muted-foreground">
-							Search for your favorite wallpapers or tap a topic below to get
+							Search for your favorite wallpapers or tap a modifier below to get
 							started.
 						</p>
 						<p className="text-muted-foreground/60 text-xs">
-							Topics: Nature · Technology · Architecture · Travel · Minimal ·
-							Animals
+							Modifiers: Nature · Technology · Travel · Minimal · Space
 						</p>
 					</div>
 				)}

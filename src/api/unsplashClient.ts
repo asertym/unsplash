@@ -18,6 +18,7 @@ export interface UnsplashPhoto {
   user: {
     name: string;
     username: string;
+    profile_image: { small: string; medium: string; large: string };
     links: {
       html: string;
     };
@@ -37,11 +38,12 @@ export interface UnsplashSearchResult {
 export async function searchPhotos(
   query: string,
   page: number,
-  perPage: number
+  perPage: number,
+  orientation?: "portrait" | "landscape"
 ): Promise<{ data: UnsplashSearchResult | null; error: unknown }> {
   const result = await unsplash.GET("/search/photos", {
     params: {
-      query: { query, page, per_page: perPage },
+      query: { query, page, per_page: perPage, ...(orientation ? { orientation } : {}) },
     },
   });
   if (result.error) return { data: null, error: result.error };
@@ -73,12 +75,4 @@ export async function getPhotoDetail(
   return { data: result.data as unknown as UnsplashPhoto, error: null };
 }
 
-export async function getDownloadUrl(
-  photoId: string
-): Promise<{ data: { url: string } | null; error: unknown }> {
-  const result = await unsplash.GET("/photos/{id}/download", {
-    params: { path: { id: photoId } },
-  });
-  if (result.error) return { data: null, error: result.error };
-  return { data: result.data as unknown as { url: string }, error: null };
-}
+

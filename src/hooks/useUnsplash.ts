@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { searchPhotos, type UnsplashPhoto } from "@/api/unsplashClient";
+import { useSettingsStore } from "@/store/settings";
 
 const PER_PAGE = 20;
 
@@ -23,14 +24,22 @@ export function useUnsplash() {
       setTotal(0);
       loadedPagesRef.current.clear();
     }
-    queryRef.current = query;
+    const fullQuery = query.trim() ? `wallpapers ${query.trim()}` : "wallpapers";
+    queryRef.current = fullQuery;
 
     setLoading(true);
     setError(null);
 
     try {
       const currentPage = pageOverride ?? (reset ? 1 : page);
-      const result = await searchPhotos(query, currentPage, PER_PAGE);
+      // Read at call time: setOrientation + immediate search() in same event
+      // would otherwise fire with the stale render-time value.
+      const result = await searchPhotos(
+        fullQuery,
+        currentPage,
+        PER_PAGE,
+        useSettingsStore.getState().orientation ?? undefined,
+      );
 
       if (result.error) {
         const msg = typeof result.error === "string" ? result.error : JSON.stringify(result.error);
@@ -54,7 +63,7 @@ export function useUnsplash() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   searchRef.current = search;
 
