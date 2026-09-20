@@ -2,13 +2,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Gear, FolderOpen } from "@phosphor-icons/react";
+import { Gear, FolderOpen, ArrowCounterClockwise } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "@/store/settings";
+import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
 export function SettingsPanel() {
   const { paginationMode, setPaginationMode, saveFolder, setSaveFolder } =
     useSettingsStore();
+  const { currentVersion, checking, error, updateAvailable, latestVersion, downloading, checkForUpdate, downloadAndInstall } =
+    useAutoUpdate();
 
   const handlePickFolder = async () => {
     const folder = await open({ directory: true, multiple: false });
@@ -61,6 +64,38 @@ export function SettingsPanel() {
                 </Button>
               )}
             </div>
+          </div>
+
+          <div className="pt-2 border-t">
+            <Label className="text-base">Updates</Label>
+            <p className="text-xs text-muted-foreground mb-3">
+              Current version: <span className="font-mono">{currentVersion}</span>
+            </p>
+            {updateAvailable && latestVersion && (
+              <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  Update available
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Version <span className="font-mono">{latestVersion}</span> is ready to install
+                </p>
+                <Button
+                  size="sm"
+                  onClick={downloadAndInstall}
+                  disabled={downloading}
+                  className="w-full"
+                >
+                  {downloading ? "Downloading…" : "Update & Relaunch"}
+                </Button>
+              </div>
+            )}
+            {error && (
+              <p className="text-xs text-destructive mb-2">{error}</p>
+            )}
+            <Button variant="outline" size="sm" onClick={checkForUpdate} disabled={checking} className="w-full">
+              <ArrowCounterClockwise className="mr-1.5 size-3.5" weight="light" />
+              {checking ? "Checking…" : "Check for updates"}
+            </Button>
           </div>
         </div>
       </DialogContent>
