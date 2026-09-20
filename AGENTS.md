@@ -38,24 +38,31 @@ src/                          React frontend
 ├── hooks/
 │   ├── useUnsplash.ts        unsplash-js calls (direct, no Tauri proxy); PER_PAGE = 20
 │   ├── useFavorites.ts       Persists to <appDir>/favorites.json via Tauri invoke
-│   └── useInfiniteScroll.ts  IntersectionObserver for pagination
+│   ├── useInfiniteScroll.ts  IntersectionObserver for pagination
+│   └── useAutoUpdate.ts      @tauri-apps/plugin-updater + plugin-process (relaunch)
 ├── store/
 │   └── settings.ts           zustand: paginationMode ('load-more' | 'infinite')
 ├── api/
-│   ├── client.ts             Tauri invoke wrappers (getFavorites, saveFavorites)
+│   ├── client.ts             Tauri invoke wrappers (getFavorites, saveFavorites, savePhoto, getSettings, saveSettings)
 │   └── unsplashClient.ts     unsplash-js API calls (searchPhotos, getTopicPhotos, getPhotoDetail, getDownloadUrl)
 └── App.tsx
 
 src-tauri/
 ├── src/
 │   ├── main.rs               Tauri entry (just calls lib.rs::run())
-│   ├── lib.rs                Builder: registers get_favorites, save_favorites commands
-│   └── unsplash.rs           Rust fns: get_favorites, save_favorites (file I/O)
-├── tauri.conf.json           App config, window 1400×900, VITE_UNSPLASH_ACCESS_KEY in env
+│   ├── lib.rs                Builder: registers plugins + commands (see below)
+│   └── unsplash.rs           Rust fns: get_favorites, save_favorites, save_photo, get_settings, save_settings
+├── tauri.conf.json           App config, window 1400×900, updater pubkey/endpoints, VITE_UNSPLASH_ACCESS_KEY in env
 └── capabilities/default.json Frontend permissions
 ```
 
-**Note**: This app calls the Unsplash API **directly from the frontend** via `unsplash-js` using `VITE_UNSPLASH_ACCESS_KEY` (set in `tauri.conf.json` → `env`). The Rust backend only handles favorites file persistence, not API proxying.
+**Plugins** (registered in `lib.rs`):
+- `tauri_plugin_opener` — opens URLs externally (`openUrl` from `@tauri-apps/plugin-opener`)
+- `tauri_plugin_dialog` — file/folder picker (`open` from `@tauri-apps/plugin-dialog`)
+- `tauri_plugin_process` — app relaunch (`relaunch` from `@tauri-apps/plugin-process`)
+- `tauri_plugin_updater` — checked updates at runtime (`check` from `@tauri-apps/plugin-updater`)
+
+**Note**: This app calls the Unsplash API **directly from the frontend** via `unsplash-js` using `VITE_UNSPLASH_ACCESS_KEY` (set in `tauri.conf.json` → `env`). The Rust backend handles favorites/settings file I/O and photo downloads, not API proxying.
 
 ## Unsplash API
 
@@ -85,6 +92,7 @@ src-tauri/
 
 - **Path aliases**: `@/*` → `./src/*` (tsconfig `paths`)
 - **Tauri commands**: Add fn in `src-tauri/src/unsplash.rs` with `#[tauri::command]`, register in `src-tauri/src/lib.rs` `generate_handler![]`, add wrapper in `src/api/client.ts`
+- **Plugins**: Add dep in `src-tauri/Cargo.toml`, init in `lib.rs` builder, install `@tauri-apps/plugin-<name>` via pnpm
 - **shadcn components**: `pnpm dlx shadcn@latest add <name>` → import from `@/components/ui/<name>`
 - **Icons**: `@phosphor-icons/react` (weight prop for stroke/fill variants)
 - **Strict TypeScript**: `noUnusedLocals`, `noUnusedParameters`, `strict` enabled — unused imports/vars are errors
@@ -106,6 +114,8 @@ src-tauri/
 - **Rust entry**: `main.rs` is 6 lines; the real builder is in `lib.rs` — editing `main.rs` alone won't register new commands
 - **Favorites persistence**: uses `dirs::data_local_dir()`, not Tauri's path plugin
 - **Tauri dev port**: Vite runs on `:1420`, not the usual `:5173` (configured in `tauri.conf.json` → `build.devUrl`)
+- **Auto-updater**: `createUpdaterArtifacts: true` in `tauri.conf.json` → `pnpm tauri build` generates `latest.json`, `latest.json.sig`, `latest.tar.gz.sig` in `target/release/bundle/`. Upload those three files to a GitHub release for the updater to pick them up from the release's `/download/latest.json` endpoint
+- **Unused tauri feature**: `dynamic-acl` is declared in `Cargo.toml` but never used — safe to remove
 
 ## Documentation
 
